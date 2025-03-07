@@ -7,16 +7,23 @@ const axios = require('axios'); // For API calls to get UTXO info
  * @param {string} utxoTxId - Transaction ID of the UTXO to burn
  * @param {number} utxoVout - Output index of the UTXO to burn
  * @param {number} feeRate - Fee rate in satoshis per byte
+ * @param {Object} options - Optional parameters
+ * @param {bitcoin.Network} options.network - Bitcoin network (defaults to mainnet)
+ * @param {Function} options.getUTXOInfoFn - Custom function to get UTXO info
+ * @param {string} options.burnMessage - Custom message to include in OP_RETURN
  * @returns {Promise<string>} - The transaction hex
  */
-async function burnBitcoin(privateKeyWIF, utxoTxId, utxoVout, feeRate) {
+async function burnBitcoin(privateKeyWIF, utxoTxId, utxoVout, feeRate, options = {}) {
     try {
-        const network = bitcoin.networks.bitcoin;
+        const network = options.network || bitcoin.networks.bitcoin;
+        const burnMessage = options.burnMessage ? Buffer.from(options.burnMessage, 'utf8') : Buffer.from('Burned coins', 'utf8');
+        const getUTXOInfoFn = options.getUTXOInfoFn || getUTXOInfo;
+        
         const keyPair = bitcoin.ECPair.fromWIF(privateKeyWIF, network);
         const { address } = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey, network });
         
-        // Get UTXO amount (in practice, you would use a Bitcoin API or your node)
-        const utxoInfo = await getUTXOInfo(utxoTxId, utxoVout, address);
+        // Get UTXO amount using the provided or default function
+        const utxoInfo = await getUTXOInfoFn(utxoTxId, utxoVout, address);
         const utxoAmount = utxoInfo.value; // In satoshis
         
         if (!utxoAmount || utxoAmount <= 0) {
@@ -27,7 +34,6 @@ async function burnBitcoin(privateKeyWIF, utxoTxId, utxoVout, feeRate) {
         txb.addInput(utxoTxId, utxoVout);
         
         // Create OP_RETURN burn output
-        const burnMessage = Buffer.from('Burned coins', 'utf8');
         const dataScript = bitcoin.script.compile([bitcoin.opcodes.OP_RETURN, burnMessage]);
         txb.addOutput(dataScript, 0); // Value is 0 for OP_RETURN
         

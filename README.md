@@ -52,6 +52,60 @@ burnBitcoin('YOUR_PRIVATE_KEY_WIF', 'TX_ID', 0, 2)
   .catch(err => console.error('Burn failed:', err));
 ```
 
+## Testing with Regtest
+
+You can safely test this tool using Bitcoin's regtest mode without risking real BTC. Follow these steps:
+
+### 1. Set up a Bitcoin Core node in regtest mode
+
+If you don't already have Bitcoin Core installed:
+```bash
+# Download and install Bitcoin Core (example for Ubuntu)
+# For other platforms, visit https://bitcoincore.org/en/download/
+sudo apt-get install bitcoin-qt
+```
+
+Create a bitcoin.conf file with regtest settings:
+```
+regtest=1
+server=1
+rpcuser=rpcuser
+rpcpassword=rpcpassword
+rpcallowip=127.0.0.1
+```
+
+Start Bitcoin Core in regtest mode:
+```bash
+bitcoin-qt -regtest -conf=/path/to/bitcoin.conf
+# Or for the daemon:
+# bitcoind -regtest -conf=/path/to/bitcoin.conf
+```
+
+### 2. Configure the regtest test script
+
+Edit the regtest-test.js file to match your Bitcoin Core RPC credentials:
+```javascript
+const RPC_USER = 'rpcuser';       // Update with your Bitcoin Core RPC username
+const RPC_PASSWORD = 'rpcpassword'; // Update with your Bitcoin Core RPC password
+const RPC_URL = 'http://localhost:18443/'; // Default regtest RPC port
+```
+
+### 3. Run the regtest testing script
+
+```bash
+npm run test:regtest
+```
+
+The test script will:
+1. Generate a new Bitcoin address with private key
+2. Mine regtest blocks to get coins
+3. Send 1 BTC to the test address
+4. Create a burn transaction with an OP_RETURN output
+5. Broadcast the transaction to the regtest network
+6. Verify the burn was successful
+
+This provides a safe environment to test the burning functionality without using real Bitcoin.
+
 ## Broadcasting the Transaction
 
 After generating the transaction hex, you can broadcast it using:
@@ -82,10 +136,24 @@ You can customize the burn message by modifying the `burnMessage` variable in th
 const burnMessage = Buffer.from('Your custom message here', 'utf8');
 ```
 
+You can also pass options to the burnBitcoin function to customize the behavior:
+```javascript
+const options = {
+  network: bitcoin.networks.testnet, // Use testnet instead of mainnet
+  burnMessage: 'Custom burn message', // Set a custom message
+};
+
+burnBitcoin(privateKeyWIF, txId, vout, feeRate, options)
+  .then(txHex => console.log('Burn transaction:', txHex))
+  .catch(err => console.error('Error:', err));
+```
+
 ## Dependencies
 
 - [bitcoinjs-lib](https://github.com/bitcoinjs/bitcoinjs-lib) - For Bitcoin transaction creation
 - [axios](https://github.com/axios/axios) - For API requests to fetch UTXO data
+- [ecpair](https://github.com/bitcoinjs/ecpair) - For key pair management in testing
+- [tiny-secp256k1](https://github.com/bitcoinjs/tiny-secp256k1) - Cryptographic library for Bitcoin
 
 ## License
 

@@ -4,7 +4,9 @@
   "description": "A tool for permanently burning Bitcoin by sending UTXOs to OP_RETURN outputs",
   "main": "bitcoin-utxo-burner.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:regtest": "node regtest-test.js",
+    "start": "node example.js"
   },
   "keywords": [
     "bitcoin",
@@ -16,10 +18,12 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.6.2",
-    "bitcoinjs-lib": "^5.2.0"
+    "axios": "^1.8.2",
+    "bitcoinjs-lib": "^6.1.7",
+    "ecpair": "^2.1.0",
+    "tiny-secp256k1": "^2.2.3"
   },
   "engines": {
-    "node": ">=12.0.0"
+    "node": ">=18.0.0"
   }
 } 
