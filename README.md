@@ -27,7 +27,7 @@ This utility allows users to permanently remove Bitcoin from circulation by crea
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/Bitcoin_UTXO_Burner.git
+git clone https://github.com/jrobinfo/Bitcoin_UTXO_Burner.git
 cd Bitcoin_UTXO_Burner
 
 # Install dependencies
