@@ -4,8 +4,8 @@
   "description": "A tool for permanently burning Bitcoin by sending UTXOs to OP_RETURN outputs",
   "main": "bitcoin-utxo-burner.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test:regtest": "node regtest-test.js",
+    "test": "node bitcoinjs-regtest.js",
+    "test:js": "node bitcoinjs-regtest.js",
     "start": "node example.js"
   },
   "keywords": [

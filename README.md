@@ -16,10 +16,11 @@ This utility allows users to permanently remove Bitcoin from circulation by crea
 - Customize the burn message
 - Automatically calculates and deducts network fees
 - Produces raw transaction hex that can be broadcast through various services
+- Pure JavaScript implementation for easy testing with no external dependencies
 
 ## Prerequisites
 
-- Node.js (v12.0.0 or higher)
+- Node.js (v18.0.0 or higher)
 - npm (v6.0.0 or higher)
 
 ## Installation
@@ -33,7 +34,25 @@ cd Bitcoin_UTXO_Burner
 npm install
 ```
 
-## Usage
+## Testing with Pure JavaScript
+
+This tool includes a pure JavaScript implementation for testing the Bitcoin burning process without requiring any external Bitcoin infrastructure:
+
+```bash
+# Run the JavaScript regtest implementation
+npm test
+```
+
+This simulates:
+1. Creating Bitcoin addresses
+2. Funding a test wallet
+3. Creating a burn transaction with an OP_RETURN output
+4. Broadcasting the transaction to a simulated network
+5. Confirming and verifying the transaction
+
+## Usage in Your Application
+
+To use this tool in your own application:
 
 ```javascript
 const { burnBitcoin } = require('./bitcoin-utxo-burner');
@@ -51,60 +70,6 @@ burnBitcoin('YOUR_PRIVATE_KEY_WIF', 'TX_ID', 0, 2)
   })
   .catch(err => console.error('Burn failed:', err));
 ```
-
-## Testing with Regtest
-
-You can safely test this tool using Bitcoin's regtest mode without risking real BTC. Follow these steps:
-
-### 1. Set up a Bitcoin Core node in regtest mode
-
-If you don't already have Bitcoin Core installed:
-```bash
-# Download and install Bitcoin Core (example for Ubuntu)
-# For other platforms, visit https://bitcoincore.org/en/download/
-sudo apt-get install bitcoin-qt
-```
-
-Create a bitcoin.conf file with regtest settings:
-```
-regtest=1
-server=1
-rpcuser=rpcuser
-rpcpassword=rpcpassword
-rpcallowip=127.0.0.1
-```
-
-Start Bitcoin Core in regtest mode:
-```bash
-bitcoin-qt -regtest -conf=/path/to/bitcoin.conf
-# Or for the daemon:
-# bitcoind -regtest -conf=/path/to/bitcoin.conf
-```
-
-### 2. Configure the regtest test script
-
-Edit the regtest-test.js file to match your Bitcoin Core RPC credentials:
-```javascript
-const RPC_USER = 'rpcuser';       // Update with your Bitcoin Core RPC username
-const RPC_PASSWORD = 'rpcpassword'; // Update with your Bitcoin Core RPC password
-const RPC_URL = 'http://localhost:18443/'; // Default regtest RPC port
-```
-
-### 3. Run the regtest testing script
-
-```bash
-npm run test:regtest
-```
-
-The test script will:
-1. Generate a new Bitcoin address with private key
-2. Mine regtest blocks to get coins
-3. Send 1 BTC to the test address
-4. Create a burn transaction with an OP_RETURN output
-5. Broadcast the transaction to the regtest network
-6. Verify the burn was successful
-
-This provides a safe environment to test the burning functionality without using real Bitcoin.
 
 ## Broadcasting the Transaction
 

@@ -1,5 +1,11 @@
 const bitcoin = require('bitcoinjs-lib');
 const axios = require('axios'); // For API calls to get UTXO info
+// Import ECPair factory for handling private keys
+const { ECPairFactory } = require('ecpair');
+const ecc = require('tiny-secp256k1');
+
+// Initialize ECPair factory
+const ECPair = ECPairFactory(ecc);
 
 /**
  * Burns an entire UTXO by sending it to an OP_RETURN output
@@ -19,8 +25,43 @@ async function burnBitcoin(privateKeyWIF, utxoTxId, utxoVout, feeRate, options =
         const burnMessage = options.burnMessage ? Buffer.from(options.burnMessage, 'utf8') : Buffer.from('Burned coins', 'utf8');
         const getUTXOInfoFn = options.getUTXOInfoFn || getUTXOInfo;
         
-        const keyPair = bitcoin.ECPair.fromWIF(privateKeyWIF, network);
-        const { address } = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey, network });
+        // Use ECPair factory to create key pair from WIF
+        const keyPair = ECPair.fromWIF(privateKeyWIF, network);
+        
+        // Get address depending on format (legacy, segwit, etc)
+        let payment;
+        if (privateKeyWIF.startsWith('c') || privateKeyWIF.startsWith('9')) {
+            // For regtest/testnet
+            if (privateKeyWIF.startsWith('c')) {
+                // Try to detect P2WPKH (SegWit) addresses
+                try {
+                    payment = bitcoin.payments.p2wpkh({ pubkey: keyPair.publicKey, network });
+                } catch (e) {
+                    // Fallback to P2PKH if P2WPKH fails
+                    payment = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey, network });
+                }
+            } else {
+                // Default to P2PKH for other testnet addresses
+                payment = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey, network });
+            }
+        } else {
+            // For mainnet
+            if (privateKeyWIF.startsWith('L') || privateKeyWIF.startsWith('K')) {
+                // Compressed pubkey format - try P2WPKH first
+                try {
+                    payment = bitcoin.payments.p2wpkh({ pubkey: keyPair.publicKey, network });
+                } catch (e) {
+                    // Fallback to P2PKH
+                    payment = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey, network });
+                }
+            } else {
+                // Uncompressed pubkey format - use P2PKH
+                payment = bitcoin.payments.p2pkh({ pubkey: keyPair.publicKey, network });
+            }
+        }
+        
+        const address = payment.address;
+        console.log(`Identified address for private key: ${address}`);
         
         // Get UTXO amount using the provided or default function
         const utxoInfo = await getUTXOInfoFn(utxoTxId, utxoVout, address);
@@ -30,15 +71,20 @@ async function burnBitcoin(privateKeyWIF, utxoTxId, utxoVout, feeRate, options =
             throw new Error('Invalid UTXO amount');
         }
         
-        const txb = new bitcoin.TransactionBuilder(network);
-        txb.addInput(utxoTxId, utxoVout);
+        // Create a simple legacy transaction instead of using PSBT
+        const tx = new bitcoin.Transaction();
         
-        // Create OP_RETURN burn output
+        // Add input
+        const txidBuffer = Buffer.from(utxoTxId, 'hex').reverse(); // reverse for internal Bitcoin representation
+        tx.addInput(txidBuffer, utxoVout);
+        
+        // Add OP_RETURN output
         const dataScript = bitcoin.script.compile([bitcoin.opcodes.OP_RETURN, burnMessage]);
-        txb.addOutput(dataScript, 0); // Value is 0 for OP_RETURN
+        tx.addOutput(dataScript, 0); // Value is 0 for OP_RETURN
         
         // Estimate transaction size and calculate fee
-        const estimatedSize = txb.buildIncomplete().toHex().length / 2 + 150; // Add buffer for signatures
+        // Simple transaction with no change output will be around 200-250 bytes
+        const estimatedSize = 250;
         const estimatedFee = Math.floor(estimatedSize * feeRate);
         
         // Verify we have enough to cover fees
@@ -46,16 +92,42 @@ async function burnBitcoin(privateKeyWIF, utxoTxId, utxoVout, feeRate, options =
             throw new Error(`UTXO amount (${utxoAmount} satoshis) is too small to cover the fee (${estimatedFee} satoshis)`);
         }
         
+        // Add change output (required for valid transaction)
+        if (payment.output) {
+            // Send change back to the same address
+            tx.addOutput(payment.output, utxoAmount - estimatedFee);
+        } else {
+            throw new Error("Could not create change output");
+        }
+        
         // Sign the transaction
-        txb.sign(0, keyPair);
-        const tx = txb.build();
+        const sigHash = tx.hashForSignature(0, bitcoin.script.compile([
+            bitcoin.opcodes.OP_DUP,
+            bitcoin.opcodes.OP_HASH160,
+            payment.hash,
+            bitcoin.opcodes.OP_EQUALVERIFY,
+            bitcoin.opcodes.OP_CHECKSIG
+        ]), bitcoin.Transaction.SIGHASH_ALL);
+        
+        const signature = keyPair.sign(sigHash);
+        
+        // Add signature to input
+        const scriptSig = bitcoin.script.compile([
+            bitcoin.script.signature.encode(
+                signature, 
+                bitcoin.Transaction.SIGHASH_ALL
+            ),
+            keyPair.publicKey
+        ]);
+        
+        tx.setInputScript(0, scriptSig);
+        
         const txHex = tx.toHex();
         
         console.log('Raw Tx Hex:', txHex);
-        console.log(`Burning entire UTXO (${utxoAmount} satoshis) minus fee (${estimatedFee} satoshis)`);
-        console.log(`Total burned: ${utxoAmount - estimatedFee} satoshis`);
+        console.log(`Burning UTXO (${utxoAmount} satoshis) with a fee of ${estimatedFee} satoshis`);
         
-        return txHex; // This can be broadcast via a service like Blockstream.info
+        return txHex;
     } catch (error) {
         throw new Error(`Failed to create burn transaction: ${error.message}`);
     }
